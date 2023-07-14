@@ -1,12 +1,12 @@
-const backURL = `https://cups-store.onrender.com`
+const backURL = `https://cups-store.onrender.com`;
 
 const getUser = () => {
     return JSON.parse(localStorage.getItem('user'));
-}
+};
 
 const removeUser = async () => {
     localStorage.removeItem('user')
-}
+};
 
 const setUser = (user) => {
     localStorage.setItem('user', JSON.stringify(user));
