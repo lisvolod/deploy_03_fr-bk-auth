@@ -21,6 +21,7 @@ async function removeProduct(a, b) {
         let deleteParams = JSON.stringify({_id:a, cloudinaryPublicId:b})
         await fetch(`${backURL}/product/`, {
             method: "DELETE",
+            mode: 'cors',
             credentials: 'include',                 // Don't forget to specify this if you need cookies
             headers: {
                 'Content-Type': 'application/json'
@@ -42,6 +43,7 @@ async function removeProduct(a, b) {
 async function getAndShowAllProducts() {
     await fetch(`${backURL}/product`, {
         method: 'GET',
+        mode: 'cors',
         credentials: 'include'                 // Don't forget to specify this if you need cookies
     })
     .then(response => response.json())                      // Парсимо [object Response] 

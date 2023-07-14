@@ -15,6 +15,7 @@ async function userLogin() {
         headers: {
           'Content-Type': 'application/json',   // Встановлення Content-Type на "application/json"
         },
+        mode: 'cors', 
         credentials: 'include',                 // Don't forget to specify this if you need cookies
         body: JSON.stringify(reqBody),          // Перетворення даних форми в JSON-рядок
       };
