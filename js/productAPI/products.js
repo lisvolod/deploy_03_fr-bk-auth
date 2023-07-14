@@ -100,6 +100,7 @@ async function sendProductData() {
     try {
         await fetch (`${backURL}/product`, {
             method: 'POST',
+            mode: 'cors',
             credentials: 'include',
             body: collectProductFormData('productForm'),
         }) 
