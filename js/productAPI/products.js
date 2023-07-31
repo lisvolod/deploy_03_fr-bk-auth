@@ -1,24 +1,153 @@
+import { attachEventHandler, backURL, getPage, getUser, setPageCount } from "../config.js";
+import { confirmModal, waitForRemoveButtonPress } from "../modals/confirmationModal.js";
+import { dropDownClose } from "../modals/main.js";
+import { convertModalToEdit, openProductModalWithCreate, productModal, renderProductCategoriesOptions } from "../modals/productModal.js";
+import { renderPagination, showPagination } from "../pagination.js";
+import { productCardRender } from "./productCard.js";
+
+
+// Функція рендерингу кнопки "Create New Product" для адміністратора
+export const  btnRender = () => {
+    const btnContainer = document.querySelector(".btn-container");
+    btnContainer.innerHTML = ``;
+    // Перевіряємо, чи короситувач є адміністатором
+    const user = getUser();
+    // Якщо адміністратор - малюємо кнопку "Створити продукт"
+    
+    if ( user && user.isAdmin) {
+        btnContainer.innerHTML = `<button type="button" class="btn btn-secondary" id="createBtn">Create New Product</button>`;
+    }
+    attachEventHandler('createBtn', 'click', openProductModalWithCreate);
+}
+
+//
+// ***** Показати всі продукти
+///
+export const getAndShowAllProducts = async () => {
+    // Вибираємо значення для фільтрації і пошуку
+    const page = getPage();
+    const filterCategory = document.getElementById('filter-category').value;
+    const sort = document.getElementById('filter-sort').value;
+    const search = document.getElementById('filter-search').value.trim();
+    /// Формуємо об'єкт з критеріяи для пошуку та фільтрації
+    const queryParams = new URLSearchParams({
+        page: `${page}`,
+        category: `${filterCategory}`,
+        sort: `${sort}`,
+        search: `${search}`
+      });
+    // Передаємо сформований об'єкт у query-параметри GET-запиту  
+    await fetch(`${backURL}/product?${queryParams}`, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'include'                 // Don't forget to specify this if you need cookies
+    })
+    .then(response => response.json())                      // Парсимо [object Response] 
+    .then( data => {                                         // Парсимо [object Promise]
+            dropDownClose(); // Закриваємо випадаюче меню в адаптиві 
+            btnRender();     // Кнопка Create New Product для адміна        
+             // В об'єкті data приходять продукти та їх кількість { items: items, pageCount: pageCount }
+            
+             // Сетимо кількість сторінок
+            setPageCount(data.pageCount);
+            renderPagination();
+            showPagination();
+            
+            // Рендеримо карточки продуктів
+            const dataContainer = document.querySelector(".data-container");
+            dataContainer.innerHTML = "";                   // Очищуємо контейнер продуктів
+            
+            // Перевіряємо, чи є продукти
+            if (data.items.length) {
+                data.items.forEach(product => {
+                    // console.log(product);
+                    dropDownClose();
+                    // Якщо є - рендиримо карточки продуктів
+                    productCardRender(product);
+                });
+            }
+            else {
+                dataContainer.innerHTML = `<div class="empy-errors">
+                    <div class="empy-errors-item">No products found </div>
+                    <!-- <div class="empy-errors-item">First - create some category,</div>
+                    <div class="empy-errors-item">then you'll be able to create products.</div> -->
+                </div>`
+            }
+           
+    })
+    .catch( err => console.log(err));
+}
+
+//
+// ***** Редагування продукту (заповнення полів модалки)
+//
+
+export const editProduct = (product) => {
+    convertModalToEdit();
+    renderProductCategoriesOptions();
+    // Шукаємо, яка прийшла категорія, і вибираємо її
+    const categoryListBox = document.querySelector('#producCategory');
+    const options = Array.from(categoryListBox.options);
+    const optionToSelect = options.find(item => item.text === product.category.name);
+    optionToSelect.selected = true;
+    document.getElementById('productId').value = product._id;
+    document.getElementById('productName').value = product.name;
+    document.getElementById('productVolume').value = product.volume;
+    document.getElementById('productMaterial').value = product.material;
+    document.getElementById('productPrice').value = product.price;
+    document.getElementById('formImage').setAttribute("src", product.image) ;
+    document.getElementById('oldCloudinaryPublicId').value = product.cloud;
+    document.getElementById('oldImagePath').value = product.image;
+    productModal.open();
+}
+
+
+//
+// ***** Створення нового продукту 
+//
+
+// Очищення форми productForm після відправки даних
+const clearHiddenProductFormAttrib = () => {
+    document.forms["productForm"].reset()
+    document.getElementById("productId").removeAttribute("value");
+    document.getElementById("oldCloudinaryPublicId").removeAttribute("value");
+}
+
+// Функція для збирання значень полів форми продуктів
+const collectProductFormData = (formName) => {
+    const currentForm = document.forms[formName];
+    let formData = new FormData(currentForm);
+    document.forms[formName].reset();
+    clearHiddenProductFormAttrib();
+    return formData;
+}
+
+// Функція для відправки запиту на створення нового продукту
+export const sendProductData = async () => {
+    try {
+        await fetch (`${backURL}/product`, {
+            method: 'POST',
+            mode: 'cors',
+            credentials: 'include',
+            body: collectProductFormData('productForm'),
+        })
+        .then(clearHiddenProductFormAttrib()); 
+    } catch (error) {
+        console.error(error);
+    }
+   
+}
+
 //
 // ***** Видалення продукту
 ///
 
-// Кнопка Remove у модалці Removal confirmation
-const removeButton = document.getElementById('removeProductBtn');
-
-// Функція, яка повертає проміс, який буде вирішений (resolved) 
-// при натисканні кнопки Remove у модалці Removal confirmation
-function waitForRemoveButtonPress() {
-        return new Promise((resolve, reject) => {
-            removeButton.addEventListener('click', () => {
-            resolve();                  // Вирішити проміс, коли кнопка буде натиснута
-        });
-    });
-}
-
-async function removeProduct(a, b) {
+export const removeProduct = async (product) => {
+    const msg = document.getElementsByClassName('confirmation-message')[0];
+    msg.innerHTML = `Are you sure you want to remove <b>${product.name}</b>`
     confirmModal.open();
     await waitForRemoveButtonPress();    // Зупинити виконання до натискання кнопки
-        let deleteParams = JSON.stringify({_id:a, cloudinaryPublicId:b})
+        let deleteParams = JSON.stringify({_id:product._id, cloudinaryPublicId: product.cloudinaryPublicId})
         await fetch(`${backURL}/product/`, {
             method: "DELETE",
             mode: 'cors',
@@ -29,95 +158,14 @@ async function removeProduct(a, b) {
             body: deleteParams
         })
         .then( () => {
-            removeButton.removeEventListener('click', () => {resolve();}); // Видалити обробник для економії пам'яті
-            confirmModal.close();
+           confirmModal.close();
             getAndShowAllProducts();
         })
-    }
-    
-
-//
-// ***** Показати всі продукти
-///
-
-async function getAndShowAllProducts() {
-    await fetch(`${backURL}/product`, {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'include'                 // Don't forget to specify this if you need cookies
-    })
-    .then(response => response.json())                      // Парсимо [object Response] 
-    .then(data => {                                         // Парсимо [object Promise]
-            const dataContainer = document.querySelector(".data-container");
-            dataContainer.innerHTML = "";                   // Очищуємо контейнер
-            if (data.length) {
-                data.forEach(product => {
-                    // console.log(product);
-                    productCardRender(product);
-                });
-            }
-            else {
-                dataContainer.innerHTML = `<div style='color:red'>
-                                                <h1 style='color:red'>No products found yet. </h1>
-                                                <h1>Create some product...</h1>
-                                            </div>`
-            }
-           
-    })
 }
 
-//
-// ***** Редагування продукту (заповнення полів модалки)
-//
 
-function editProduct(id, name, volume, mat, price, img, cloud) {
-    convertModalToEdit();
-    document.getElementById('productId').value = id;
-    document.getElementById('productName').value = name;
-    document.getElementById('productVolume').value = volume;
-    document.getElementById('productMaterial').value = mat;
-    document.getElementById('productPrice').value = price;
-    document.getElementById('formImage').setAttribute("src", img) ;
-    document.getElementById('oldCloudinaryPublicId').value = cloud;
-    document.getElementById('oldImagePath').value = img;
-    productModal.open();
-}
 
-//
-// ***** Створення нового продукту 
-//
 
-// Функція для збирання значення полів форми продуктів
-function collectProductFormData(formName) {
-    const currentForm = document.forms[formName];
-    let formData = new FormData(currentForm);
-    document.forms[formName].reset();
-    clearHiddenProductFormAttrib();
-    return formData;
-}
-// Функція для відправки запиту на створення нового продукту
-async function sendProductData() {
-    try {
-        await fetch (`${backURL}/product`, {
-            method: 'POST',
-            mode: 'cors',
-            credentials: 'include',
-            body: collectProductFormData('productForm'),
-        }) 
-    } catch (error) {
-        console.error(error);
-    }
-   
-}
 
-// Обробник відправки форми
-document.forms["productForm"].addEventListener ('submit', (e) => {
-    e.preventDefault();
-    productModal.close();
-    convertModalToCreate();
-    sendProductData()
-    .then( () => {getAndShowAllProducts()} )
-    .catch (err => console.error(err)) ;    
-})
 
 
